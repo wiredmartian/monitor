@@ -13,6 +13,9 @@ func main() {
 	r := gin.Default()
 	m := melody.New()
 
+	known := make(map[string]string)
+	known["entity"] = "entity"
+
 	m.Upgrader.CheckOrigin = func(r *http.Request) bool {
 		return true
 	}
@@ -21,15 +24,16 @@ func main() {
 		http.ServeFile(c.Writer, c.Request, "public/index.html")
 	})
 
-	r.GET("/ws", func(c *gin.Context) {
-		m.HandleRequest(c.Writer, c.Request)
-	})
-
 	r.GET("/channel/:id/ws", func(c *gin.Context) {
 		m.HandleRequest(c.Writer, c.Request)
 	})
 
 	r.POST("/notify/:id", func(c *gin.Context) {
+		id, _ := c.Params.Get("id")
+		if _, yes := known[id]; !yes {
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
 		_ = HandleNotification(c, m)
 		c.Status(200)
 		return
@@ -46,12 +50,8 @@ func main() {
 }
 
 func HandleNotification(c *gin.Context, m *melody.Melody) error {
-	c.Status(200)
+	id, _ := c.Params.Get("id")
 
-	id, found := c.Params.Get("id")
-	if !found {
-		return fmt.Errorf("id not found in params")
-	}
 	response := struct {
 		Uri string
 		Id  string

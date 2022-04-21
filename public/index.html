@@ -6,8 +6,8 @@
 
     document.cookie = 'X-Authorization=' + authToken + '; path=/';
 
-    var sock = null;
-    var wsuri = "ws://127.0.0.1:5000/channel/martian/ws";
+    let sock = null;
+    let wsuri = "ws://127.0.0.1:5000/channel/martian/ws";
 
     window.onload = function() {
 
@@ -31,9 +31,9 @@
     };
 
     function send() {
-        var msg = document.getElementById('message').value;
+        const msg = document.getElementById('message').value;
         sock.send(msg);
-    };
+    }
 </script>
 <h1>WebSocket Echo Test</h1>
 <form>
