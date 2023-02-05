@@ -16,6 +16,7 @@ func main() {
 	r := gin.Default()
 	m := melody.New()
 	l := localstorage.New()
+	var validator ReqValidator
 
 	m.Upgrader.CheckOrigin = func(r *http.Request) bool {
 		return true
@@ -33,21 +34,12 @@ func main() {
 	})
 
 	r.GET("/client/:id/connect", func(c *gin.Context) {
+		validator.validateRequest(l, c)
 		m.HandleRequest(c.Writer, c.Request)
 	})
 
 	r.POST("/notify/:id", func(c *gin.Context) {
-		key := ""
-		if paramId, found := c.Params.Get("id"); !found {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "missing required webhook id parameter"})
-			return
-		} else {
-			key = paramId
-		}
-		if !l.Exists(key) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("webhook id: %v does not exist", key)})
-			return
-		}
+		validator.validateRequest(l, c)
 		_ = HandleNotification(c, m)
 		c.Status(200)
 		return
