@@ -33,12 +33,12 @@ func main() {
 	})
 
 	r.GET("/client/:id/connect", func(c *gin.Context) {
-		validateRequest(l, c)
+		ValidateRequest(l, c)
 		m.HandleRequest(c.Writer, c.Request)
 	})
 
 	r.POST("/notify/:id", func(c *gin.Context) {
-		validateRequest(l, c)
+		ValidateRequest(l, c)
 		_ = HandleNotification(c, m)
 		c.Status(200)
 		return
@@ -70,4 +70,18 @@ func HandleNotification(c *gin.Context, m *melody.Melody) error {
 		return s.Request.URL.Path == fmt.Sprintf("/client/%v/connect", id)
 	})
 	return err
+}
+
+func ValidateRequest(l *localstorage.LocalStorage, c *gin.Context) {
+	key := ""
+	if paramId, found := c.Params.Get("id"); !found {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing required webhook id parameter"})
+		return
+	} else {
+		key = paramId
+	}
+	if !l.Exists(key) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("webhook id: %v does not exist", key)})
+		return
+	}
 }
