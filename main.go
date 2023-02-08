@@ -75,12 +75,14 @@ func HandleNotification(c *gin.Context, m *melody.Melody) error {
 func ValidateRequest(l *localstorage.LocalStorage, c *gin.Context) {
 	key := ""
 	if paramId, found := c.Params.Get("id"); !found {
+		fmt.Println("missing required webhook id parameter")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "missing required webhook id parameter"})
 		return
 	} else {
 		key = paramId
 	}
 	if !l.Exists(key) {
+		fmt.Printf("webhook id: %v does not exist", key)
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("webhook id: %v does not exist", key)})
 		return
 	}
