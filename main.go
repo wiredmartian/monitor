@@ -6,14 +6,14 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/monitor/localstorage"
+	"log"
 	"net/http"
+	"strings"
 
-	"github.com/gin-gonic/gin"
 	"gopkg.in/olahol/melody.v1"
 )
 
 func main() {
-	r := gin.Default()
 	m := melody.New()
 	l := localstorage.New()
 
@@ -21,48 +21,57 @@ func main() {
 		return true
 	}
 
-	r.POST("/webhook", func(c *gin.Context) {
+	http.HandleFunc("/webhook", func(w http.ResponseWriter, r *http.Request) {
 		key := uuid.New().String()
 		_ = l.AddToStorage(key)
 		cache := l.GetAllFromStorage()
-		c.JSON(http.StatusOK, gin.H{"data": cache})
+		w.Header().Set("content-type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(struct {
+			Data map[string]localstorage.StorageItem
+		}{Data: cache})
 	})
 
-	r.GET("/", func(c *gin.Context) {
-		http.ServeFile(c.Writer, c.Request, "public/index.html")
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "public/index.html")
 	})
 
-	r.GET("/client/:id/connect", func(c *gin.Context) {
-		ValidateRequest(l, c)
-		m.HandleRequest(c.Writer, c.Request)
+	http.HandleFunc("/client/:id/connect", func(w http.ResponseWriter, r *http.Request) {
+		err := m.HandleRequest(w, r)
+		if err != nil {
+			w.Header().Set("content-type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Println(err)
+		}
 	})
 
-	r.POST("/notify/:id", func(c *gin.Context) {
-		ValidateRequest(l, c)
-		_ = HandleNotification(c, m)
-		c.Status(200)
+	http.HandleFunc("/notify/:id", func(w http.ResponseWriter, r *http.Request) {
+		_ = HandleNotification(r, m)
+		w.Header().Set("content-type", "application/json")
+		w.WriteHeader(http.StatusOK)
 		return
 	})
 
 	m.HandleMessage(func(s *melody.Session, msg []byte) {
 		m.BroadcastFilter(msg, func(q *melody.Session) bool {
-			var data map[string]interface{}
-			json.Unmarshal(msg, data)
-			fmt.Println(data)
 			return s.Request.URL.Path == q.Request.URL.Path && s != q
 		})
 	})
 
-	r.Run(":1111")
+	err := http.ListenAndServe(":1111", nil)
+
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
-func HandleNotification(c *gin.Context, m *melody.Melody) error {
-	id, _ := c.Params.Get("id")
+func HandleNotification(r *http.Request, m *melody.Melody) error {
+	id := strings.TrimPrefix(r.URL.Path, "/notify/")
 
 	response := struct {
 		Uri string
 		Id  string
-	}{Uri: c.Request.URL.Path, Id: id}
+	}{Uri: r.URL.Path, Id: id}
 
 	resBody := new(bytes.Buffer)
 	json.NewEncoder(resBody).Encode(response)
@@ -72,18 +81,18 @@ func HandleNotification(c *gin.Context, m *melody.Melody) error {
 	return err
 }
 
-func ValidateRequest(l *localstorage.LocalStorage, c *gin.Context) {
-	key := ""
-	if paramId, found := c.Params.Get("id"); !found {
-		fmt.Println("missing required webhook id parameter")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "missing required webhook id parameter"})
-		return
-	} else {
-		key = paramId
-	}
-	if !l.Exists(key) {
-		fmt.Printf("webhook id: %v does not exist", key)
-		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("webhook id: %v does not exist", key)})
-		return
-	}
-}
+//func ValidateRequest(l *localstorage.LocalStorage, r *http.Request) {
+//	key := ""
+//	if paramId, found := r.URL.Query().Get("id"); !found {
+//		fmt.Println("missing required webhook id parameter")
+//		c.JSON(http.StatusBadRequest, gin.H{"error": "missing required webhook id parameter"})
+//		return
+//	} else {
+//		key = paramId
+//	}
+//	if !l.Exists(key) {
+//		fmt.Printf("webhook id: %v does not exist", key)
+//		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("webhook id: %v does not exist", key)})
+//		return
+//	}
+//}
